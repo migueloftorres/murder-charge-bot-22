@@ -1,0 +1,71 @@
+name: Workflow A - Run Scraper
+
+on:
+  workflow_dispatch:
+    inputs:
+      START:
+        description: "Start number"
+        required: true
+        default: "0"
+      END:
+        description: "End number"
+        required: true
+        default: "100"
+      YEAR:
+        description: "Year"
+        required: true
+        default: "2024"
+
+jobs:
+  run-scraper-a:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install beautifulsoup4 requests
+
+      - name: Run scraper
+        env:
+          START: ${{ inputs.START }}
+          END: ${{ inputs.END }}
+          YEAR: ${{ inputs.YEAR }}
+        run: python scraper.py
+
+      - name: Create named zip if CSV exists
+        if: success() && hashFiles('charges_CR*.csv') != ''
+        run: |
+          CSV_NAME=$(ls charges_CR*.csv)
+          ZIP_NAME="${CSV_NAME%.csv}.zip"
+          zip "$ZIP_NAME" "$CSV_NAME" progress.txt || true
+          echo "ZIPPED_FILE=$ZIP_NAME" >> $GITHUB_ENV
+
+      - name: Upload named artifact
+        if: success() && env.ZIPPED_FILE != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ZIPPED_FILE }}
+          path: ${{ env.ZIPPED_FILE }}
+
+      - name: Trigger Workflow B if progress exists
+        if: success() && hashFiles('progress.txt') != ''
+        run: |
+          NEXT_START=$(cat progress.txt)
+          if [ "$NEXT_START" -lt "${{ inputs.END }}" ]; then
+            echo "🔁 Triggering Workflow B"
+            curl -X POST \
+              -H "Authorization: Bearer ${{ secrets.PAT_TOKEN }}" \
+              -H "Accept: application/vnd.github+json" \
+              https://api.github.com/repos/${{ github.repository }}/dispatches \
+              -d "{\"event_type\":\"continue-with-b\",\"client_payload\":{\"start\":\"$NEXT_START\",\"end\":\"${{ inputs.END }}\",\"year\":\"${{ inputs.YEAR }}\"}}"
+          else
+            echo "✅ Full range completed. No need to continue."
+          fi
