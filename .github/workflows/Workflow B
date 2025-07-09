@@ -1,0 +1,60 @@
+name: Workflow B - Continue Scraper
+
+on:
+  repository_dispatch:
+    types: [continue-with-b]
+
+jobs:
+  run-scraper-b:
+    if: ${{ github.event.action != 'cancelled' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install beautifulsoup4 requests
+
+      - name: Run scraper with payload
+        env:
+          START: ${{ github.event.client_payload.start }}
+          END: ${{ github.event.client_payload.end }}
+          YEAR: ${{ github.event.client_payload.year }}
+        run: python scraper.py
+
+      - name: Create named zip if CSV exists
+        if: success() && hashFiles('charges_CR*.csv') != ''
+        run: |
+          CSV_NAME=$(ls charges_CR*.csv)
+          ZIP_NAME="${CSV_NAME%.csv}.zip"
+          zip "$ZIP_NAME" "$CSV_NAME" progress.txt || true
+          echo "ZIPPED_FILE=$ZIP_NAME" >> $GITHUB_ENV
+
+      - name: Upload named artifact
+        if: success() && env.ZIPPED_FILE != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ZIPPED_FILE }}
+          path: ${{ env.ZIPPED_FILE }}
+
+      - name: Trigger Workflow C if not finished
+        if: success() && hashFiles('progress.txt') != ''
+        run: |
+          NEXT_START=$(cat progress.txt)
+          if [ "$NEXT_START" -lt "${{ github.event.client_payload.end }}" ]; then
+            echo "🔁 Triggering Workflow C"
+            curl -X POST \
+              -H "Authorization: Bearer ${{ secrets.PAT_TOKEN }}" \
+              -H "Accept: application/vnd.github+json" \
+              https://api.github.com/repos/${{ github.repository }}/dispatches \
+              -d "{\"event_type\":\"continue-with-c\",\"client_payload\":{\"start\":\"$NEXT_START\",\"end\":\"${{ github.event.client_payload.end }}\",\"year\":\"${{ github.event.client_payload.year }}\"}}"
+          else
+            echo "✅ Workflow B finished full range."
+          fi
