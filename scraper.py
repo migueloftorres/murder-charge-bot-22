@@ -1,6 +1,7 @@
 import requests
 from bs4 import BeautifulSoup
 import csv
+import time
 import os
 import random
 from datetime import datetime
@@ -24,35 +25,31 @@ with open("progress.txt", "w") as prog:
 
 temp_csv_file = f"charges_CR{year}_{start}-placeholder.csv"
 
+# 🔁 Mobile header + cookie sets
 header_pool = [
-    {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.5735.110 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.8",
-        "Referer": "https://www.google.com/",
-        "Connection": "keep-alive",
-        "Upgrade-Insecure-Requests": "1"
-    },
-    {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Safari/605.1.15",
-        "Accept": "text/html,application/xhtml+xml",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Referer": "https://bing.com/",
-        "Connection": "keep-alive",
-    },
-    {
-        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.5672.92 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-        "Accept-Language": "en-GB,en;q=0.7",
-        "Referer": "https://duckduckgo.com/",
-        "Connection": "keep-alive",
-    },
     {
         "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1",
         "Accept": "text/html,application/xhtml+xml",
-        "Accept-Language": "en-US,en;q=0.5",
-        "Referer": "https://www.superiorcourt.maricopa.gov/",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": "https://www.google.com/",
         "Connection": "keep-alive",
+        "Cookie": "sessionid=abc123; trackingid=mobile1"
+    },
+    {
+        "User-Agent": "Mozilla/5.0 (Android 11; Mobile; rv:93.0) Gecko/93.0 Firefox/93.0",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.8",
+        "Referer": "https://duckduckgo.com/",
+        "Connection": "keep-alive",
+        "Cookie": "userid=xyz456; theme=dark"
+    },
+    {
+        "User-Agent": "Mozilla/5.0 (Linux; Android 10; SM-G973F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.5790.170 Mobile Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml",
+        "Accept-Language": "en-US,en;q=0.7",
+        "Referer": "https://search.yahoo.com/",
+        "Connection": "keep-alive",
+        "Cookie": "token=mobileuser123; pref=lang_en"
     }
 ]
 
@@ -138,6 +135,10 @@ with open(temp_csv_file, mode="w", newline="", encoding="utf-8") as f:
             print(f"{timestamp()} ⚠️ Request error with {case_number}: {e}", flush=True)
         except Exception as e:
             print(f"{timestamp()} ⚠️ General error with {case_number}: {e}", flush=True)
+
+        sleep_duration = random.uniform(4, 9)
+        print(f"{timestamp()} 💤 Sleeping for {sleep_duration:.2f} seconds to simulate human-like pacing...", flush=True)
+        time.sleep(sleep_duration)
 
         current += 1
 
