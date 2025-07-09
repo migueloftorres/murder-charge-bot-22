@@ -1,0 +1,101 @@
+name: Combine All CSV Artifacts
+
+on:
+  workflow_dispatch:
+
+jobs:
+  collect-and-combine:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install unzip
+        run: sudo apt-get update && sudo apt-get install -y unzip
+
+      - name: List and download all artifacts from workflows A, B, C
+        env:
+          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
+        run: |
+          mkdir artifacts_raw
+          > raw_artifacts.json
+
+          echo "🔍 Fetching artifact list from GitHub with pagination..."
+
+          for page in {1..20}; do
+            echo "📄 Fetching page $page..."
+            curl -s -H "Authorization: token $GITHUB_TOKEN" \
+                 -H "Accept: application/vnd.github+json" \
+                 "https://api.github.com/repos/${{ github.repository }}/actions/artifacts?per_page=100&page=$page" \
+              >> raw_artifacts.json
+          done
+
+          echo "📄 Raw response (first 20 lines):"
+          head -n 20 raw_artifacts.json
+
+          echo "🧾 Listing artifact names:"
+          jq -r 'select(type == "object") | .artifacts[]? | select(.expired == false) | "- \(.name) (ID: \(.id))"' raw_artifacts.json || echo "⚠️ Failed to parse artifact names."
+
+          jq -r 'select(type == "object") | .artifacts[]? | select(.expired == false) | "\(.id) \(.name)"' raw_artifacts.json > artifact_list.txt
+
+          if [ ! -s artifact_list.txt ]; then
+            echo "⚠️ No artifacts found to download. Exiting early."
+            exit 0
+          fi
+
+          while IFS=" " read -r id name; do
+            echo "⬇️ Downloading artifact: $name (ID: $id)"
+            curl -L -s -H "Authorization: token $GITHUB_TOKEN" \
+                 -H "Accept: application/vnd.github+json" \
+                 "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/$id/zip" \
+              -o "artifacts_raw/$name.zip"
+          done < artifact_list.txt
+
+      - name: Extract all CSVs
+        run: |
+          mkdir -p extracted_csvs
+          COUNT=$(find artifacts_raw -name '*.zip' | wc -l)
+          echo "🗃️ Found $COUNT zip files to extract."
+
+          if [ "$COUNT" -eq 0 ]; then
+            echo "❌ No zip files found in artifacts_raw/. Exiting."
+            exit 0
+          fi
+
+          for zipfile in artifacts_raw/*.zip; do
+            echo "📦 Inspecting outer zip: $zipfile"
+            unzip -q -d extracted_csvs/temp_outer "$zipfile"
+            inner_zip=$(find extracted_csvs/temp_outer -name '*.zip' | head -n 1)
+
+            if [ -n "$inner_zip" ]; then
+              echo "📦 Extracting inner zip: $inner_zip"
+              unzip -o "$inner_zip" '*.csv' -d extracted_csvs/ || echo "⚠️ Failed to unzip inner $inner_zip"
+            else
+              echo "⚠️ No inner zip found in $zipfile"
+            fi
+            rm -rf extracted_csvs/temp_outer
+          done
+
+      - name: Combine all CSVs
+        run: |
+          COMBINED=combined_charges_$(date +%Y%m%d_%H%M%S).csv
+          if ls extracted_csvs/*.csv 1> /dev/null 2>&1; then
+            head -n 1 $(ls extracted_csvs/*.csv | head -n1) > "$COMBINED"
+            tail -n +2 -q extracted_csvs/*.csv >> "$COMBINED"
+            echo "✅ Combined CSV created: $COMBINED"
+          else
+            echo "❌ No CSVs found to combine."
+            exit 0
+          fi
+
+      - name: Upload combined CSV
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: combined-charges-csv
+          path: combined_charges_*.csv
