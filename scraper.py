@@ -25,7 +25,7 @@ with open("progress.txt", "w") as prog:
 
 temp_csv_file = f"charges_CR{year}_{start}-placeholder.csv"
 
-# 🔁 Mobile header + cookie sets
+# 🔁 Mobile headers + cookie sets
 header_pool = [
     {
         "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1",
@@ -81,9 +81,13 @@ with open(temp_csv_file, mode="w", newline="", encoding="utf-8") as f:
 
             if "Server busy. Please try again later." in page_text:
                 print(f"{timestamp()} 🔄 Server busy message detected. Ending run.", flush=True)
+                with open("progress.txt", "w") as prog:
+                    prog.write(str(current))  # ← Update before exiting
                 break
             elif "Please try again later" in page_text or "temporarily unavailable" in page_text:
                 print(f"{timestamp()} ⚠️ Similar server message detected. Snippet:\n{page_text[:300]}", flush=True)
+                with open("progress.txt", "w") as prog:
+                    prog.write(str(current))  # ← Update before exiting
                 break
             else:
                 print(f"{timestamp()} ℹ️ Page snippet for {case_number}: {page_text[:300]}", flush=True)
