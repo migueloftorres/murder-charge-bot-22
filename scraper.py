@@ -1,7 +1,6 @@
 import requests
 from bs4 import BeautifulSoup
 import csv
-import time
 import os
 import random
 from datetime import datetime
@@ -25,31 +24,38 @@ with open("progress.txt", "w") as prog:
 
 temp_csv_file = f"charges_CR{year}_{start}-placeholder.csv"
 
-# 🔁 Mobile headers + cookie sets
 header_pool = [
     {
-        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1",
-        "Accept": "text/html,application/xhtml+xml",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.9",
-        "Referer": "https://www.google.com/",
+        "Referer": "https://startpage.com/",
         "Connection": "keep-alive",
-        "Cookie": "sessionid=abc123; trackingid=mobile1"
+        "Cookie": "sessionid=fake123; visitor=desktop1"
     },
     {
-        "User-Agent": "Mozilla/5.0 (Android 11; Mobile; rv:93.0) Gecko/93.0 Firefox/93.0",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.6312.105 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml",
         "Accept-Language": "en-US,en;q=0.8",
+        "Referer": "https://search.brave.com/",
+        "Connection": "keep-alive",
+        "Cookie": "session=bravecookie; view=macuser"
+    },
+    {
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.6261.128 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-GB,en;q=0.9",
         "Referer": "https://duckduckgo.com/",
         "Connection": "keep-alive",
-        "Cookie": "userid=xyz456; theme=dark"
+        "Cookie": "token=linuxtoken123; lastvisit=ddg"
     },
     {
-        "User-Agent": "Mozilla/5.0 (Linux; Android 10; SM-G973F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.5790.170 Mobile Safari/537.36",
+        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
         "Accept": "text/html,application/xhtml+xml",
         "Accept-Language": "en-US,en;q=0.7",
-        "Referer": "https://search.yahoo.com/",
+        "Referer": "https://www.google.com/",
         "Connection": "keep-alive",
-        "Cookie": "token=mobileuser123; pref=lang_en"
+        "Cookie": "mobile_session=iph123; theme=light"
     }
 ]
 
@@ -82,12 +88,12 @@ with open(temp_csv_file, mode="w", newline="", encoding="utf-8") as f:
             if "Server busy. Please try again later." in page_text:
                 print(f"{timestamp()} 🔄 Server busy message detected. Ending run.", flush=True)
                 with open("progress.txt", "w") as prog:
-                    prog.write(str(current))  # ← Update before exiting
+                    prog.write(str(current))
                 break
             elif "Please try again later" in page_text or "temporarily unavailable" in page_text:
                 print(f"{timestamp()} ⚠️ Similar server message detected. Snippet:\n{page_text[:300]}", flush=True)
                 with open("progress.txt", "w") as prog:
-                    prog.write(str(current))  # ← Update before exiting
+                    prog.write(str(current))
                 break
             else:
                 print(f"{timestamp()} ℹ️ Page snippet for {case_number}: {page_text[:300]}", flush=True)
@@ -139,10 +145,6 @@ with open(temp_csv_file, mode="w", newline="", encoding="utf-8") as f:
             print(f"{timestamp()} ⚠️ Request error with {case_number}: {e}", flush=True)
         except Exception as e:
             print(f"{timestamp()} ⚠️ General error with {case_number}: {e}", flush=True)
-
-        sleep_duration = random.uniform(4, 9)
-        print(f"{timestamp()} 💤 Sleeping for {sleep_duration:.2f} seconds to simulate human-like pacing...", flush=True)
-        time.sleep(sleep_duration)
 
         current += 1
 
