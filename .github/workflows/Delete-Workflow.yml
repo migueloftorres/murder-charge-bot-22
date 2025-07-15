@@ -1,40 +1,31 @@
-name: Delete All Workflow Runs
+name: Delete all workflow runs across all pages
+  env:
+    GH_PAT: ${{ secrets.PAT_TOKEN }}
+    REPO: ${{ github.repository }}
+  run: |
+    echo "🔄 Starting deletion of workflow runs for $REPO..."
 
-on:
-  workflow_dispatch:
+    PAGE=1
+    while true; do
+      echo "📄 Fetching page $PAGE..."
+      RESPONSE=$(curl -s -H "Authorization: Bearer $GH_PAT" \
+        -H "Accept: application/vnd.github+json" \
+        "https://api.github.com/repos/$REPO/actions/runs?per_page=100&page=$PAGE")
 
-jobs:
-  delete-workflows:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Delete all workflow runs across all pages
-        env:
-          GH_PAT: ${{ secrets.PAT_TOKEN }}  # using your PAT secret named GH_TOKENN
-          REPO: ${{ github.repository }}
-        run: |
-          echo "🔄 Starting deletion of workflow runs for $REPO..."
+      RUN_IDS=$(echo "$RESPONSE" | jq -r '.workflow_runs[]?.id')
 
-          PAGE=1
-          while true; do
-            echo "📄 Fetching page $PAGE..."
-            RESPONSE=$(curl -s -H "Authorization: Bearer $GH_PAT" \
-              -H "Accept: application/vnd.github+json" \
-              "https://api.github.com/repos/$REPO/actions/runs?per_page=100&page=$PAGE")
+      if [ -z "$RUN_IDS" ]; then
+        echo "✅ No more workflow runs found. Finished deleting."
+        break
+      fi
 
-            RUN_IDS=$(echo "$RESPONSE" | jq '.workflow_runs | select(. != null) | .[].id')
+      for RUN_ID in $RUN_IDS; do
+        echo "🗑️ Deleting run ID: $RUN_ID"
+        curl -s -X DELETE \
+          -H "Authorization: Bearer $GH_PAT" \
+          -H "Accept: application/vnd.github+json" \
+          "https://api.github.com/repos/$REPO/actions/runs/$RUN_ID"
+      done
 
-            if [ -z "$RUN_IDS" ]; then
-              echo "✅ No more workflow runs found. Finished deleting."
-              break
-            fi
-
-            for RUN_ID in $RUN_IDS; do
-              echo "🗑️ Deleting run ID: $RUN_ID"
-              curl -s -X DELETE \
-                -H "Authorization: Bearer $GH_PAT" \
-                -H "Accept: application/vnd.github+json" \
-                "https://api.github.com/repos/$REPO/actions/runs/$RUN_ID"
-            done
-
-            PAGE=$((PAGE + 1))
-          done
+      PAGE=$((PAGE + 1))
+    done
