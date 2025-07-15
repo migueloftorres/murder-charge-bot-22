@@ -1,3 +1,4 @@
+
 name: Delete All Workflow Runs
 
 on:
@@ -6,10 +7,11 @@ on:
 jobs:
   delete-workflows:
     runs-on: ubuntu-latest
+
     steps:
       - name: Delete all workflow runs across all pages
         env:
-          GH_PAT: ${{ secrets.GH_TOKENN }}  # using your PAT secret named GH_TOKENN
+          GH_PAT: ${{ secrets.PAT_TOKEN }}
           REPO: ${{ github.repository }}
         run: |
           echo "🔄 Starting deletion of workflow runs for $REPO..."
@@ -17,11 +19,28 @@ jobs:
           PAGE=1
           while true; do
             echo "📄 Fetching page $PAGE..."
-            RESPONSE=$(curl -s -H "Authorization: Bearer $GH_PAT" \
+            RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -H "Authorization: Bearer $GH_PAT" \
               -H "Accept: application/vnd.github+json" \
               "https://api.github.com/repos/$REPO/actions/runs?per_page=100&page=$PAGE")
 
-            RUN_IDS=$(echo "$RESPONSE" | jq '.workflow_runs | select(. != null) | .[].id')
+            # Separate response body and HTTP status
+            HTTP_BODY=$(echo "$RESPONSE" | sed -n '/^HTTP_STATUS:/!p')
+            HTTP_STATUS=$(echo "$RESPONSE" | sed -n 's/^HTTP_STATUS://p')
+
+            echo "ℹ️ HTTP Status Code: $HTTP_STATUS"
+            echo "🔍 Raw JSON snippet (first 500 chars):"
+            echo "$HTTP_BODY" | head -c 500
+            echo ""
+
+            if [ "$HTTP_STATUS" != "200" ]; then
+              echo "❌ GitHub API error. Status code: $HTTP_STATUS"
+              break
+            fi
+
+            RUN_IDS=$(echo "$HTTP_BODY" | jq -r '.workflow_runs[]?.id')
+
+            RUN_COUNT=$(echo "$RUN_IDS" | wc -l | tr -d ' ')
+            echo "🔢 Found $RUN_COUNT runs on page $PAGE."
 
             if [ -z "$RUN_IDS" ]; then
               echo "✅ No more workflow runs found. Finished deleting."
@@ -29,11 +48,18 @@ jobs:
             fi
 
             for RUN_ID in $RUN_IDS; do
-              echo "🗑️ Deleting run ID: $RUN_ID"
-              curl -s -X DELETE \
+              DELETE_URL="https://api.github.com/repos/$REPO/actions/runs/$RUN_ID"
+              echo "🗑️ Deleting run ID: $RUN_ID → $DELETE_URL"
+              DELETE_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE \
                 -H "Authorization: Bearer $GH_PAT" \
                 -H "Accept: application/vnd.github+json" \
-                "https://api.github.com/repos/$REPO/actions/runs/$RUN_ID"
+                "$DELETE_URL")
+
+              if [ "$DELETE_RESPONSE" = "204" ]; then
+                echo "✅ Successfully deleted run ID $RUN_ID"
+              else
+                echo "⚠️ Failed to delete run ID $RUN_ID (Status: $DELETE_RESPONSE)"
+              fi
             done
 
             PAGE=$((PAGE + 1))
